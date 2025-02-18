@@ -1,0 +1,136 @@
+from typing import List
+from dataclasses import dataclass
+from Reactionclass import Reaction
+@dataclass
+class PostMongo:
+    id: str
+    type: str
+    time_crawl: int
+    link: str
+    author: str
+    author_link: str
+    author_id: str
+    avatar: str
+    created_time: int
+    content: str
+    image_url: List[str]
+    interactive: int
+    like: int
+    comment: int
+    haha: int
+    love: int
+    wow: int
+    sad: int
+    angry: int
+    share: int
+    domain: str
+    hashtag: List[str]
+    video: str
+    videos: List[str]
+    source_id: str
+    is_shared: int
+    link_share: str
+    title: str
+    post_classify: str
+    evaluate: str
+    keyword: List[str]
+    topic_id: List[str]
+    description: str
+    duration: int
+    music: str
+    view: int
+    id_share: int
+    type_share: str
+    care: int
+    avatar_key: str
+    link_key: str
+    image_url_keys: List[str]
+    video_key: str
+    video_keys: List[str]
+    id_encode: str
+    feedback_id: str
+    feedback_expansion_token: str
+    depth_comment: str
+    parent_id: str
+    location: str
+    location_link: str
+    message: str
+    reactions_points: str
+    points: int
+    reacted_time: int
+    role: str
+    list_like: List[Reaction]
+    list_angry: List[Reaction]
+    list_haha: List[Reaction]
+    list_love: List[Reaction]
+    list_wow: List[Reaction]
+    out_links: List[str]
+    version: int
+
+    def to_dict(self):
+        # Chuyển đối tượng thành từ điển
+        return {
+            "id": self.id,
+            "type": self.type,
+            "time_crawl": self.time_crawl,
+            "link": self.link,
+            "author": self.author,
+            "author_link": self.author_link,
+            "author_id": self.author_id,
+            "avatar": self.avatar,
+            "created_time": self.created_time,
+            "content": self.content,
+            "image_url": self.image_url,
+            "interactive": self.interactive,
+            "like": self.like,
+            "comment": self.comment,
+            "haha": self.haha,
+            "love": self.love,
+            "wow": self.wow,
+            "sad": self.sad,
+            "angry": self.angry,
+            "share": self.share,
+            "domain": self.domain,
+            "hashtag": self.hashtag,
+            "video": self.video,
+            "videos": self.videos,
+            "source_id": self.source_id,
+            "is_shared": self.is_shared,
+            "link_share": self.link_share,
+            "title": self.title,
+            "post_classify": self.post_classify,
+            "evaluate": self.evaluate,
+            "keyword": self.keyword,
+            "topic_id": self.topic_id,
+            "description": self.description,
+            "duration": self.duration,
+            "music": self.music,
+            "view": self.view,
+            "id_share": self.id_share,
+            "type_share": self.type_share,
+            "care": self.care,
+            "avatar_key": self.avatar_key,
+            "link_key": self.link_key,
+            "image_url_keys": self.image_url_keys,
+            "video_key": self.video_key,
+            "video_keys": self.video_keys,
+            "id_encode": self.id_encode,
+            "feedback_id": self.feedback_id,
+            "feedback_expansion_token": self.feedback_expansion_token,
+            "depth_comment": self.depth_comment,
+            "parent_id": self.parent_id,
+            "location": self.location,
+            "location_link": self.location_link,
+            "message": self.message,
+            "reactions_points": self.reactions_points,
+            "points": self.points,
+            "reacted_time": self.reacted_time,
+            "role": self.role,
+            "list_like": [reaction.to_dict() for reaction in self.list_like],
+            "list_angry": [reaction.to_dict() for reaction in self.list_angry],
+            "list_haha": [reaction.to_dict() for reaction in self.list_haha],
+            "list_love": [reaction.to_dict() for reaction in self.list_love],
+            "list_wow": [reaction.to_dict() for reaction in self.list_wow],
+            "out_links": self.out_links,
+            "version": self.version
+        }
