@@ -107,9 +107,6 @@ class ThresholdHelper:
         )
 
     def is_post_pass_through_keyword_condition(self, post_mongo : PostMongo, warning_condition : WarningConditionResponse, all_post_types : List[PostTypeResponse]):
-        # Logic for keyword condition
-        pass
-    def is_post_pass_through_keyword_condition(self, post_mongo : PostMongo, warning_condition : WarningConditionResponse, all_post_types : List[PostTypeResponse]):
         channel = post_mongo.type
         keywords = warning_condition.keywords
 
