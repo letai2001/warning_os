@@ -19,9 +19,48 @@ class FilterPostTypeRequest:
     def of(keys: List[str], is_comment: bool):
         return FilterPostTypeRequest(keys, is_comment)
 class WarningUtils:
+    PREFIX_CONTENT_IMMEDIATELY = ': "'
+    BLANK = ''
+    TOPIC = "Chủ đề "
+    POST_THRESHOLD_EXCEEDED = " có bài viết vượt ngưỡng"
+
     @staticmethod
     def get_full_post_type_key():
-        return ["facebook", "titkok", "youtube", "electronic", "forums"]
+        return ["facebook", "tiktok", "youtube", "electronic", "forums"]
+    @staticmethod
+    def limit_content_has_max_20_words(input: str) -> str:
+        if input is None:
+            return None
+        words = input.split()
+        if len(words) <= 20:
+            return input
+        else:
+            truncated = ' '.join(words[:20])
+            return truncated + "..."
+    @staticmethod
+    def build_warning_content_by_topic_immediately(topic_names: list, primary_content: str) -> str:
+        if primary_content is None:
+            primary_content = WarningUtils.BLANK
+        else:
+            primary_content = WarningUtils.limit_content_has_max_20_words(primary_content)
+            primary_content = WarningUtils.PREFIX_CONTENT_IMMEDIATELY + primary_content + '"'
+
+        result = ', '.join([f'"{topic_name}"' for topic_name in topic_names])
+
+        return WarningUtils.TOPIC + result + WarningUtils.POST_THRESHOLD_EXCEEDED + primary_content
+    @staticmethod
+
+    def build_warning_content_by_keyword_immediately(keywords: list, primary_content: str) -> str:
+        if primary_content is None:
+            primary_content = WarningUtils.BLANK
+        else:
+            primary_content = WarningUtils.limit_content_has_max_20_words(primary_content)
+            primary_content = WarningUtils.PREFIX_CONTENT_IMMEDIATELY + primary_content + '"'
+
+        result = ', '.join([f'"{keyword}"' for keyword in keywords])
+
+        return WarningUtils.KEYWORD + result + WarningUtils.POST_THRESHOLD_EXCEEDED + primary_content
+
 
 class PostTypeService:
     def __init__(self, db_url: str, db_name: str):

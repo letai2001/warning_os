@@ -47,7 +47,7 @@ class ThresholdHelper:
         topic_ids = [topic.id for topic in warning_condition.topics]
 
         # Kiểm tra sự trùng lặp giữa topic_ids và post_mongo.topic_ids
-        if not self.has_common_element(topic_ids, post_mongo.topic_ids):
+        if not self.has_common_element(topic_ids, post_mongo.topic_id):
             return None
 
         # Duyệt qua các điều kiện của warning condition
@@ -123,7 +123,7 @@ class ThresholdHelper:
                     
                     threshold_value = int(threshold_object.value)
                     count_occurrence_in_content = self.count_occurrence_of_keywords_in_post_content(post_mongo.content, keyword)
-                    count_occurrence_in_title = self.count_occurrence_of_keywords_in_post_content(post_mongo.content, keyword)
+                    count_occurrence_in_title = self.count_occurrence_of_keywords_in_post_content(post_mongo.title, keyword)
 
                     if count_occurrence_in_content > 0 and ThresholdUtils.is_crossed_threshold(
                             threshold_object.operator, threshold_value, count_occurrence_in_content):
@@ -204,7 +204,7 @@ class ThresholdHelper:
                 post_type_keys.append(post_type.name)
         
         return post_type_keys
-    def count_occurrence_of_keywords_in_post_content(content: str, keyword: str) -> int:
+    def count_occurrence_of_keywords_in_post_content(self, content: str, keyword: str) -> int:
         count = 0
         index = 0
 

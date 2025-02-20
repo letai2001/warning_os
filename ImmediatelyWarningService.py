@@ -8,24 +8,25 @@ from ThresholdHelper import ThresholdHelper
 # from quartz_mapper import QuartzMapper  # Giả sử bạn đã có QuartzMapper
 # from user_service import UserService  # Giả sử bạn đã có service này
 # from post_type_service import PostTypeService  # Service PostType
-from warning_service import WarningService, WarningConditionService , WarningConditionResponse  ,ConditionObjectResponse# Service quản lý warning
+from warning_service import WarningMsgRequest, WarningMsgResponse, WarningMsgService, WarningHistoryService , WarningHistoryRequest, WarningService, WarningConditionService , WarningConditionResponse  , ConditionObjectResponse, TopicV2Service, WarningHistoryResponse, WarningMethod, WarningCriteria, WarningType# Service quản lý warning
 from PostTypeService import PostTypeService, FilterPostTypeRequest, WarningUtils
+from QuartzMapper import QuartzMapper
 # from warning_history_service import WarningHistoryService  # Service quản lý warning history
 # from threshold_helper import ThresholdHelper  # Giả sử bạn có helper này để kiểm tra điều kiện cảnh báo
 # from utils import WarningUtils  # Giả sử bạn có tiện ích để xử lý email và link
 from PostMongo import PostMongo
 class ImmediatelyWarningFacadeService:
     def __init__(self):
-        self.warning_service = WarningService()
-        self.warning_condition_service = WarningConditionService()  # Cần có class này
+        self.warning_service = WarningService(db_url='10.11.32.22:30000', db_name='osint')
+        self.warning_condition_service = WarningConditionService(db_url='10.11.32.22:30000', db_name='osint')  # Cần có class này
         # self.notification_service = NotificationService()
-        self.post_type_service = PostTypeService()
+        self.post_type_service = PostTypeService(db_url='10.11.32.22:30000', db_name='osint')
         self.threshold_helper = ThresholdHelper()
         # self.mail_service = MailService()
-        # self.topic_v2_service = TopicV2Service()  # Giả sử bạn có service này để lấy topic
-        # self.warning_history_service = WarningHistoryService()
-        # self.warning_msg_service = WarningMsgService()  # Giả sử có service gửi cảnh báo
-        # self.quartz_mapper = QuartzMapper()
+        self.topic_v2_service = TopicV2Service(db_url='10.11.32.22:30000', db_name='osint')  # Giả sử bạn có service này để lấy topic
+        self.warning_history_service = WarningHistoryService(db_url='10.11.32.22:30000', db_name='osint')
+        self.warning_msg_service = WarningMsgService(db_url='10.11.32.22:30000', db_name='osint')  # Giả sử có service gửi cảnh báo
+        self.quartz_mapper = QuartzMapper()
         # self.user_service = UserService()
 
     def handle_immediately_warning(self, post_mongo_list: List[PostMongo]):
@@ -51,24 +52,75 @@ class ImmediatelyWarningFacadeService:
                     break
 
     def execute_warning_actions(self, warning_id: str, warning_condition: WarningConditionResponse, condition_object: ConditionObjectResponse, post_mongo: PostMongo):
-        pass
-    #     warning = self.warning_service.find(warning_id)
-    #     topic_names = self.get_topic_names(warning_condition)
+        # print("send notification!")
+        # pass
+        warning = self.warning_service.find(warning_id)
+        topic_names = []
 
-    #     keywords = warning_condition.get('keywords', [])
+        if warning_condition.topics:
+            topic_ids = [topic.id for topic in warning_condition.topics]
+            topic_names = self.topic_v2_service.get_topic_names(topic_ids)
+        # topic_names = self.get_topic_names(warning_condition)
+        keywords = warning_condition.keywords if warning_condition.keywords is not None else []
+        content = post_mongo.title if post_mongo.title else post_mongo.content
+        warning_history = self.save_warning_history(
+            warning_condition,
+            condition_object.type,
+            warning.created_by,
+            topic_names,
+            keywords,
+            content,
+            warning.methods
+        )
 
-    #     warning_history = self.save_warning_history(warning_condition, condition_object.type, warning.created_by, topic_names, keywords, post_mongo.content, warning.methods)
+        # keywords = warning_condition.get('keywords', [])
 
-    #     warning_message = self.save_warning_message(warning_id, warning_history.id, post_mongo)
+        # warning_history = self.save_warning_history(warning_condition, condition_object.type, warning.created_by, topic_names, keywords, post_mongo.content, warning.methods)
 
-    #     try:
-    #         self.notification_service.create_warning_notification(warning_message, warning_history)
-    #     except Exception as e:
-    #         logging.error(e)
+        warning_message = self.save_warning_message(warning_id, warning_history.id, post_mongo)
 
-    #     if self.is_valid_user(warning.created_by):
-    #         if WarningMethod.EMAIL in warning.methods:
-    #             self.send_warning_to_email(warning_history.id, warning, warning_condition, condition_object.type, post_mongo, topic_names, keywords)
+        # try:
+        #     self.notification_service.create_warning_notification(warning_message, warning_history)
+        # except Exception as e:
+        #     logging.error(e)
+
+        # if self.is_valid_user(warning.created_by):
+        #     if WarningMethod.EMAIL in warning.methods:
+        #         self.send_warning_to_email(warning_history.id, warning, warning_condition, condition_object.type, post_mongo, topic_names, keywords)
+    def save_warning_history(self, warning_condition: WarningConditionResponse, condition_type: int, created_by: str,
+                            topic_names: List[str], keywords: List[str], primary_content: str, warning_method: List[WarningMethod]):
+        TOPIC_CROSSED_THRESHOLD = "Cảnh báo chủ đề vượt ngưỡng theo cấu hình "
+        KEYWORD_CROSSED_THRESHOLD = "Cảnh báo từ khóa vượt ngưỡng theo cấu hình "
+        title = TOPIC_CROSSED_THRESHOLD if warning_condition.criteria == WarningCriteria.TOPIC else KEYWORD_CROSSED_THRESHOLD
+
+        if warning_condition.code:
+            title = f"{title}#{warning_condition.code.upper()}"
+        content = (WarningCriteria.value_of(warning_condition.criteria) == WarningCriteria.TOPIC) \
+            and WarningUtils.build_warning_content_by_topic_immediately(topic_names, primary_content) \
+            or WarningUtils.build_warning_content_by_keyword_immediately(keywords, primary_content)
+
+        warning_history_request = WarningHistoryRequest.of(
+            criteria=warning_condition.criteria,
+            type=WarningType.UNEXPECTED,
+            title=title,
+            content=content,
+            created_by=created_by,
+            is_notification=WarningMethod.NOTIFICATION in warning_method  # Check if Notification is in methods
+        )
+
+        # Build warning history request
+
+        return self.warning_history_service.create(warning_history_request)
+    def save_warning_message(self, warning_id: str, warning_history_id: str, post_mongo: PostMongo) -> WarningMsgResponse:
+        # Xây dựng WarningMsgRequest từ quartzMapper (cần định nghĩa build_warning_msg_request trong quartzMapper)
+        warning_msg_request = self.quartz_mapper.build_warning_msg_request(
+            warning_id,
+            warning_history_id,
+            post_mongo
+        )
+        
+        # Gọi phương thức create của WarningMsgService để tạo WarningMsgResponse
+        return self.warning_msg_service.create(warning_msg_request)
 
     # def send_warning_to_email(self, warning_history_id: str, warning: Warning, warning_condition: WarningConditionResponse, condition_type: int, post_mongo: PostMongo, topic_names: List[str], keywords: List[str]):
     #     logging.info(f"(send_warning_to_email) warningId: {warning.id}, postId: {post_mongo.id}")

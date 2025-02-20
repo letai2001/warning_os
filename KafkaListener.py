@@ -2,47 +2,47 @@ from kafka import KafkaConsumer
 from kafka.errors import KafkaError
 import pickle
 from QuartzMapper import QuartzMapper
-
+from ImmediatelyWarningService import ImmediatelyWarningFacadeService
+from PostMongo import PostMongo
 class KafkaListener:
     def __init__(self):
         self.consumer = KafkaConsumer(
-            'osint-posts-raw',  # Topic mà bạn muốn kiểm tra
-            bootstrap_servers='172.168.200.202:9092',  # Địa chỉ Kafka của bạn
-            auto_offset_reset='earliest',  # Lấy dữ liệu bắt đầu từ đầu
-            consumer_timeout_ms=1000,  # Chờ tối đa 1 giây để nhận dữ liệu
-            value_deserializer=lambda x: pickle.loads(x)  # Giải mã dữ liệu bằng pickle
+            'osint-posts-raw', 
+            bootstrap_servers='172.168.200.202:9092',  
+            auto_offset_reset='earliest',  
+            consumer_timeout_ms=1000,  
+            value_deserializer=lambda x: pickle.loads(x) 
         )
 
     def listen(self):
         try:
-            # Polling dữ liệu từ Kafka
-            for msg in self.consumer:
-                if msg is None:
-                    print("Không có dữ liệu.")
-                    continue
+            msg = self.consumer.poll(timeout_ms=3000)
+            if not msg:
+                print("Không có dữ liệu, kết nối thành công nhưng không có thông điệp.")
+            else:
+                posts_mongos = []
+                for partition, records in msg.items():
+                    for record in records:
+                        try:
+                            for post in record.value:
+                                if isinstance(post, dict):  
+                                    posts_mongos.append(PostMongo(**post))  
+                        except Exception as e:
+                            print(f"Lỗi khi xử lý record: {e}")
+                            continue
 
-                if msg.error():
-                    if msg.error.code() == KafkaError._PARTITION_EOF:
-                        print(f"End of partition reached: {msg}")
-                    else:
-                        print(f"Lỗi Kafka: {msg.error()}")
-                else:
-                    # Duyệt qua các partition và records
-                    for partition, records in msg.items():
-                        for record in records:
-                            # Chuyển đổi byte data thành danh sách PostMongo
-                            posts_mongo = QuartzMapper.decode_to_post(record.value)
-                            self.handle_immediately_warning(posts_mongo)
+                self.handle_immediately_warning(posts_mongos)
+        
         except Exception as e:
             print(f"Đã có lỗi khi xử lý dữ liệu từ Kafka: {e}")
         finally:
-            # Đóng kết nối Kafka consumer
             self.consumer.close()
 
-    def handle_immediately_warning(self, posts_mongo):
-        # Xử lý dữ liệu cảnh báo ngay lập tức
-        print(f"Processing {len(posts_mongo)} posts")
-        # Call immediatelyWarningFacadeService.handleImmediatelyWarning(posts_mongo) ở đây nếu cần
+    def handle_immediately_warning(self, posts_mongos):
+        print(f"Processing {len(posts_mongos)} posts")
+        immediately_service = ImmediatelyWarningFacadeService()
+        immediately_service.handle_immediately_warning(posts_mongos)
+
 
 if __name__ == '__main__':
     listener = KafkaListener()
