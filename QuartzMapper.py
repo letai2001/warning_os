@@ -12,12 +12,12 @@ class CommentESService:
     def count_author_discussion(self, post_id: str) -> int:
         # Định nghĩa tên chỉ mục và trường (source_id_field)
         comment_collection_name = "comments"  # Thay thế bằng tên thực của collection bình luận
-        source_id_field = "source_id"  # Thay thế bằng tên trường thực
+        source_id_field = "_id"  # Thay thế bằng tên trường thực
 
         # Tạo truy vấn để tìm kiếm tài liệu khớp với postId
         query = {
             "query": {
-                "regexp": {
+                "term": {
                     source_id_field: post_id
                 }
             }

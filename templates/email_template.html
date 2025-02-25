@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>{{ title }}</title>
+  </head>
+  <body>
+    <h2>{{ title }}</h2>
+    <p>Xin chào {{ name }},</p>
+    <p>{{ primaryContent }}</p>
+    <p><a href="{{ link }}">Xem chi tiết tại đây</a></p>
+    <h3>{{ tableName }}</h3>
+    <ul>
+      {% for article in articles %}
+      <li>
+        <b>{{ article.title }}</b> - {{ article.name }} ({{ article.created_at
+        }}) <br />
+        <a href="{{ article.link }}">Xem bài viết</a>
+        <p>{{ article.content }}</p>
+      </li>
+      {% endfor %}
+    </ul>
+  </body>
+</html>

@@ -1,6 +1,8 @@
 from pymongo import MongoClient
 from typing import List
-
+import datetime
+from mail_service import Article
+from PostMongo import PostMongo
 class PostTypeResponse:
     def __init__(self, id: str, name: str, key: str, is_comment: bool):
         self.id = id
@@ -22,8 +24,13 @@ class WarningUtils:
     PREFIX_CONTENT_IMMEDIATELY = ': "'
     BLANK = ''
     TOPIC = "Chủ đề "
+    KEYWORD = "Từ khóa "
     POST_THRESHOLD_EXCEEDED = " có bài viết vượt ngưỡng"
-
+    TOPIC_THRESHOLD_EXCEEDED_WARNING = "[OSINT] Cảnh báo chủ đề vượt ngưỡng: "
+    CONFIGURATION_WARNING_PREFIX = " theo cấu hình #"
+    KEYWORD_THRESHOLD_EXCEEDED_WARNING = "[OSINT] Cảnh báo từ khóa vượt ngưỡng: "
+    TYPE_WARNING_PARAM = "?type=0"
+    HAS_NO_TITLE = "Không có tiêu đề"
     @staticmethod
     def get_full_post_type_key():
         return ["facebook", "tiktok", "youtube", "electronic", "forums"]
@@ -60,7 +67,72 @@ class WarningUtils:
         result = ', '.join([f'"{keyword}"' for keyword in keywords])
 
         return WarningUtils.KEYWORD + result + WarningUtils.POST_THRESHOLD_EXCEEDED + primary_content
+    @staticmethod
+    def build_subject_for_email_by_topic(topic_names: List[str], warning_condition_code: str) -> str:
+        """
+        Tạo tiêu đề email cho cảnh báo theo chủ đề.
 
+        :param topic_names: Danh sách các tên chủ đề
+        :param warning_condition_code: Mã điều kiện cảnh báo
+        :return: Tiêu đề email
+        """
+        if not topic_names:
+            return f"{WarningUtils.TOPIC_THRESHOLD_EXCEEDED_WARNING}Không có chủ đề{WarningUtils.CONFIGURATION_WARNING_PREFIX}{warning_condition_code.upper()}"
+
+        # Nối các chủ đề thành chuỗi
+        topic_str = ', '.join(f'"{topic}"' for topic in topic_names)
+
+        return f"{WarningUtils.TOPIC_THRESHOLD_EXCEEDED_WARNING}{topic_str}{WarningUtils.CONFIGURATION_WARNING_PREFIX}{warning_condition_code.upper()}"
+
+    @staticmethod
+    def build_subject_for_email_by_keyword(keywords: List[str], warning_condition_code: str) -> str:
+        """
+        Tạo tiêu đề email cho cảnh báo theo từ khóa.
+
+        :param keywords: Danh sách các từ khóa
+        :param warning_condition_code: Mã điều kiện cảnh báo
+        :return: Tiêu đề email
+        """
+        if not keywords:
+            return f"{WarningUtils.KEYWORD_THRESHOLD_EXCEEDED_WARNING}Không có từ khóa{WarningUtils.CONFIGURATION_WARNING_PREFIX}{warning_condition_code.upper()}"
+
+        # Nối các từ khóa thành chuỗi
+        keyword_str = ', '.join(f'"{keyword}"' for keyword in keywords)
+
+        return f"{WarningUtils.KEYWORD_THRESHOLD_EXCEEDED_WARNING}{keyword_str}{WarningUtils.CONFIGURATION_WARNING_PREFIX}{warning_condition_code.upper()}"
+    @staticmethod
+    def build_link_for_email(warningId: str) -> str:
+        """
+        Tạo link cho email cảnh báo.
+
+        :param post_link: Link bài viết
+        :param author_link: Link tác giả
+        :return: Chuỗi HTML chứa link
+        """
+        return warningId + WarningUtils.TYPE_WARNING_PARAM 
+    @staticmethod
+    def format_timestamp(timestamp: int) -> str:
+        """Chuyển đổi timestamp sang định dạng datetime (YYYY-MM-DD HH:MM:SS)"""
+        return datetime.utcfromtimestamp(timestamp / 1000).strftime('%Y-%m-%d %H:%M:%S')
+    @staticmethod
+    def to_article(post_mongo: PostMongo) -> Article:
+        """Chuyển đổi `PostMongo` thành `Article`"""
+        title = WarningUtils.HAS_NO_TITLE
+        content = post_mongo.content
+
+        if post_mongo.title and post_mongo.title.strip():
+            title = WarningUtils.limit_content_has_max_20_words(post_mongo.title)
+
+        if post_mongo.content and post_mongo.content.strip():
+            content = WarningUtils.limit_content_has_max_20_words(post_mongo.content)
+
+        return Article(
+            title=title,
+            name=post_mongo.author,
+            content=content,
+            created_at=WarningUtils.format_timestamp(post_mongo.created_time),
+            link=post_mongo.link
+        )
 
 class PostTypeService:
     def __init__(self, db_url: str, db_name: str):

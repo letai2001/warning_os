@@ -30,6 +30,7 @@ def test_kafka_connection():
         # Đóng kết nối consumer sau khi kiểm tra xong
         consumer.close()
 from pymongo import MongoClient
+from datetime import datetime
 
 def transfer_single_document(source_uri, target_uri, source_db, target_db, collection_name, query):
     try:
@@ -45,27 +46,76 @@ def transfer_single_document(source_uri, target_uri, source_db, target_db, colle
         document = source_collection.find_one(query)
 
         if document:
+            # Cập nhật các trường theo yêu cầu
+            document["type"] = 1
+            current_timestamp = int(datetime.utcnow().timestamp() * 1000)  # Chuyển thành ms
+            document["created_at"] = current_timestamp
+            document["updated_at"] = current_timestamp
+
+            # Loại bỏ _id nếu cần (vì MongoDB không cho phép chèn tài liệu với _id đã tồn tại)
+            # if "_id" in document:
+            #     document.pop("_id")
+
             # Đẩy tài liệu vào collection đích
             target_collection.insert_one(document)
-            print(f"Đã chuyển tài liệu từ {source_db}.{collection_name} sang {target_db}.{collection_name}")
+            print(f"Đã chuyển tài liệu từ {source_db}.{collection_name} sang {target_db}.{collection_name} với cập nhật mới.")
         else:
             print("Không tìm thấy tài liệu khớp với query.")
 
     except Exception as e:
         print(f"Đã xảy ra lỗi: {e}")
 
-# Sử dụng hàm trên
-source_uri = "10.11.32.23:30000"
-target_uri = "172.168.200.202:30000"
-source_db = "osint"
-target_db = "osint"
-collection_name = "warnings"
-
 # Query để lấy một tài liệu cụ thể
-query = {"_id": "163452af-c41b-4df0-8925-89f9abbc5ad4"}  # Sử dụng _id hoặc các trường khác để tìm tài liệu cần lấy
+def transfer_warning_condition(source_uri, target_uri, source_db, target_db, collection_name, query):
+    try:
+        # Kết nối đến MongoDB
+        source_client = MongoClient(source_uri)
+        target_client = MongoClient(target_uri)
+
+        # Truy cập vào database và collection
+        source_collection = source_client[source_db][collection_name]
+        target_collection = target_client[target_db][collection_name]
+
+        # Lấy một tài liệu từ collection nguồn theo query
+        document = source_collection.find_one(query)
+
+        if document:
+            # Cập nhật các trường theo yêu cầu
+            document["warning_id"] = "163452af-c41b-4df0-8925-89f9abbc5ad4"
+            document["keywords"] = ["nhà"]
+            current_timestamp = int(datetime.utcnow().timestamp() * 1000)  # Chuyển thành ms
+            document["created_at"] = current_timestamp
+            document["updated_at"] = current_timestamp
+
+            # Loại bỏ _id nếu cần (vì MongoDB không cho phép chèn tài liệu với _id đã tồn tại)
+            # if "_id" in document:
+            #     document.pop("_id")
+
+            # Đẩy tài liệu vào collection đích
+            target_collection.insert_one(document)
+            print(f"Đã chuyển tài liệu từ {source_db}.{collection_name} sang {target_db}.{collection_name} với cập nhật mới.")
+        else:
+            print("Không tìm thấy tài liệu khớp với query.")
+
+    except Exception as e:
+        print(f"Đã xảy ra lỗi: {e}")
 
 
 if __name__ == "__main__":
-    test_kafka_connection()
-    transfer_single_document(source_uri, target_uri, source_db, target_db, collection_name, query)
+    source_uri = "mongodb://10.11.32.22:30000"
+    target_uri = "mongodb://172.168.200.202:30000"
+    source_db = "osint"
+    target_db = "osint"
+    # collection_name = "warnings"
+    collection_name = "warning_conditions"
 
+    # Query để lấy một tài liệu cụ thể
+    # query = {"_id": "163452af-c41b-4df0-8925-89f9abbc5ad4"}
+
+    # # Gọi hàm chuyển tài liệu
+    # transfer_single_document(source_uri, target_uri, source_db, target_db, collection_name, query)
+
+    query = {"_id": "8830add8-2856-445a-b8f7-f4a1188459ea"}  # Điều chỉnh nếu cần thiết
+
+    # Gọi hàm chuyển tài liệu
+    transfer_warning_condition(source_uri, target_uri, source_db, target_db, collection_name, query)

@@ -3,31 +3,41 @@ from typing import List, Dict
 from datetime import datetime
 from kafka import KafkaConsumer
 from ThresholdHelper import ThresholdHelper
-# from mail_service import MailService  # Giả sử bạn đã có thư viện gửi mail tương tự
-# from notification_service import NotificationService  # Giả sử bạn có service này
-# from quartz_mapper import QuartzMapper  # Giả sử bạn đã có QuartzMapper
-# from user_service import UserService  # Giả sử bạn đã có service này
-# from post_type_service import PostTypeService  # Service PostType
-from warning_service import WarningMsgRequest, WarningMsgResponse, WarningMsgService, WarningHistoryService , WarningHistoryRequest, WarningService, WarningConditionService , WarningConditionResponse  , ConditionObjectResponse, TopicV2Service, WarningHistoryResponse, WarningMethod, WarningCriteria, WarningType# Service quản lý warning
+from notification import NotificationService , NotificationClientService # Giả sử bạn có service này, NotificationClientService
+from warning_service import WarningMsgRequest, WarningMsgResponse, WarningMsgService, WarningHistoryService , WarningHistoryRequest, WarningService, WarningConditionService , WarningConditionResponse  , ConditionObjectResponse, TopicV2Service, WarningHistoryResponse, WarningMethod, WarningCriteria, WarningType, Warning# Service quản lý warning
 from PostTypeService import PostTypeService, FilterPostTypeRequest, WarningUtils
 from QuartzMapper import QuartzMapper
-# from warning_history_service import WarningHistoryService  # Service quản lý warning history
-# from threshold_helper import ThresholdHelper  # Giả sử bạn có helper này để kiểm tra điều kiện cảnh báo
-# from utils import WarningUtils  # Giả sử bạn có tiện ích để xử lý email và link
+from User import UserService
 from PostMongo import PostMongo
+from mail_service import MailService
+list_warning_frontend_url = "http://192.168.143.183:3001/notification/detail/"
+
+DB_URL = '172.168.200.202:30000'
 class ImmediatelyWarningFacadeService:
     def __init__(self):
-        self.warning_service = WarningService(db_url='10.11.32.22:30000', db_name='osint')
-        self.warning_condition_service = WarningConditionService(db_url='10.11.32.22:30000', db_name='osint')  # Cần có class này
+        self.warning_service = WarningService(db_url=DB_URL, db_name='osint')
+        self.warning_condition_service = WarningConditionService(db_url=DB_URL, db_name='osint')  # Cần có class này
         # self.notification_service = NotificationService()
-        self.post_type_service = PostTypeService(db_url='10.11.32.22:30000', db_name='osint')
+        self.post_type_service = PostTypeService(db_url=DB_URL, db_name='osint')
         self.threshold_helper = ThresholdHelper()
         # self.mail_service = MailService()
-        self.topic_v2_service = TopicV2Service(db_url='10.11.32.22:30000', db_name='osint')  # Giả sử bạn có service này để lấy topic
-        self.warning_history_service = WarningHistoryService(db_url='10.11.32.22:30000', db_name='osint')
-        self.warning_msg_service = WarningMsgService(db_url='10.11.32.22:30000', db_name='osint')  # Giả sử có service gửi cảnh báo
+        self.notification_client = NotificationClientService(api_url="http://your-api-url.com")
+
+# Khởi tạo NotificationService
+        self.notification_service = NotificationService(notification_client_service=self.notification_client)
+
+        self.topic_v2_service = TopicV2Service(db_url=DB_URL, db_name='osint')  # Giả sử bạn có service này để lấy topic
+        self.warning_history_service = WarningHistoryService(db_url=DB_URL, db_name='osint')
+        self.warning_msg_service = WarningMsgService(db_url=DB_URL, db_name='osint')  # Giả sử có service gửi cảnh báo
         self.quartz_mapper = QuartzMapper()
-        # self.user_service = UserService()
+        self.user_service = UserService()
+        self.mail_service = MailService(
+            smtp_server="smtp.gmail.com",
+            smtp_port=587,
+            sender_email="your-email@gmail.com",
+            sender_password="your-password",
+            template_path="templates"
+        )
 
     def handle_immediately_warning(self, post_mongo_list: List[PostMongo]):
         logging.info("(handle_immediately_warning) =========> START")
@@ -67,6 +77,9 @@ class ImmediatelyWarningFacadeService:
             warning_condition,
             condition_object.type,
             warning.created_by,
+            warning.created_at,
+            warning.updated_by,
+            warning.updated_at,
             topic_names,
             keywords,
             content,
@@ -78,16 +91,16 @@ class ImmediatelyWarningFacadeService:
         # warning_history = self.save_warning_history(warning_condition, condition_object.type, warning.created_by, topic_names, keywords, post_mongo.content, warning.methods)
 
         warning_message = self.save_warning_message(warning_id, warning_history.id, post_mongo)
+        print("done saving warning!")
+        try:
+            self.notification_service.create_warning_notification(warning_message, warning_history)
+        except Exception as e:
+            logging.error(e)
 
-        # try:
-        #     self.notification_service.create_warning_notification(warning_message, warning_history)
-        # except Exception as e:
-        #     logging.error(e)
-
-        # if self.is_valid_user(warning.created_by):
-        #     if WarningMethod.EMAIL in warning.methods:
-        #         self.send_warning_to_email(warning_history.id, warning, warning_condition, condition_object.type, post_mongo, topic_names, keywords)
-    def save_warning_history(self, warning_condition: WarningConditionResponse, condition_type: int, created_by: str,
+        if self.is_valid_user(warning.created_by):
+            if WarningMethod.EMAIL in warning.methods:
+                self.send_warning_to_email(warning_history.id, warning, warning_condition, condition_object.type, post_mongo, topic_names, keywords)
+    def save_warning_history(self, warning_condition: WarningConditionResponse, condition_type: int, created_by: str, created_at: int , updated_by: str, updated_at: int,
                             topic_names: List[str], keywords: List[str], primary_content: str, warning_method: List[WarningMethod]):
         TOPIC_CROSSED_THRESHOLD = "Cảnh báo chủ đề vượt ngưỡng theo cấu hình "
         KEYWORD_CROSSED_THRESHOLD = "Cảnh báo từ khóa vượt ngưỡng theo cấu hình "
@@ -101,11 +114,16 @@ class ImmediatelyWarningFacadeService:
 
         warning_history_request = WarningHistoryRequest.of(
             criteria=warning_condition.criteria,
-            type=WarningType.UNEXPECTED,
+            # type=WarningType.UNEXPECTED,
+            type=condition_type,
+
             title=title,
             content=content,
             created_by=created_by,
-            is_notification=WarningMethod.NOTIFICATION in warning_method  # Check if Notification is in methods
+            created_at=created_at,
+            updated_by=updated_by,
+            updated_at=updated_at,
+            is_notification= 0  in warning_method  # Check if Notification is in methods
         )
 
         # Build warning history request
@@ -121,6 +139,71 @@ class ImmediatelyWarningFacadeService:
         
         # Gọi phương thức create của WarningMsgService để tạo WarningMsgResponse
         return self.warning_msg_service.create(warning_msg_request)
+    def send_warning_to_email(self, 
+        warning_history_id: str,
+        warning: Warning,
+        warning_condition: WarningConditionResponse,
+        condition_type: int,
+        post_mongo: PostMongo,
+        topic_names: List[str],
+        keywords: List[str]
+    ):
+        TITLE_EMAIL = "OSINT"
+        BLANK = ""
+        TITLE_TABLE_TOPIC = "Bài viết"
+        logging.info(f"(send_warning_to_email) warningId: {warning.id}, postId: {post_mongo.id}")
+
+        # 🔹 Tìm user theo created_by
+        user = None
+        try:
+            user = self.user_service.find_by_username(warning.created_by)
+        except Exception as e:
+            logging.error(e)
+
+        # 🔹 Lấy email của user
+        warning_creation_user_email = user.email if user and user.email else None
+        content_post = post_mongo.title if post_mongo.title else post_mongo.content
+
+        # 🔹 Xây dựng tiêu đề email
+        if warning_condition.criteria == 0:  # WarningCriteria.TOPIC
+            subject = WarningUtils.build_subject_for_email_by_topic(topic_names, warning_condition.code)
+            primary_content = WarningUtils.build_warning_content_by_topic_immediately(topic_names, content_post)
+        else:  # WarningCriteria.KEYWORD
+            subject = WarningUtils.build_subject_for_email_by_keyword(keywords, warning_condition.code)
+            primary_content = WarningUtils.build_warning_content_by_keyword_immediately(keywords, content_post)
+
+        # 🔹 Xây dựng link cảnh báo
+        link_warning = list_warning_frontend_url + WarningUtils.build_link_for_email(warning_history_id)
+
+        try:
+            # 🔹 Gửi email nếu người tạo warning khác với người nhận
+            if warning_creation_user_email and warning.email != warning_creation_user_email:
+                self.mail_service.send_email(
+                    warning_creation_user_email,
+                    subject,
+                    TITLE_EMAIL,
+                    BLANK,
+                    primary_content,
+                    link_warning,
+                    TITLE_TABLE_TOPIC,
+                    [self.quartz_mapper.to_article(post_mongo)],
+                    1
+                )
+
+            # 🔹 Gửi email cho người nhận chính của warning
+            self.mail_service.send_email(
+                warning.email,
+                subject,
+                TITLE_EMAIL,
+                BLANK,
+                primary_content,
+                link_warning,
+                TITLE_TABLE_TOPIC,
+                [self.quartz_mapper.to_article(post_mongo)],
+                1
+            )
+        except Exception as e:
+            logging.error("(send_warning_to_email) ==> Cannot send warning to email", e)
 
     # def send_warning_to_email(self, warning_history_id: str, warning: Warning, warning_condition: WarningConditionResponse, condition_type: int, post_mongo: PostMongo, topic_names: List[str], keywords: List[str]):
     #     logging.info(f"(send_warning_to_email) warningId: {warning.id}, postId: {post_mongo.id}")
@@ -193,6 +276,7 @@ class ImmediatelyWarningFacadeService:
     #     warning_msg_request = self.quartz_mapper.build_warning_msg_request(warning_id, warning_history_id, post_mongo)
     #     return self.warning_msg_service.create(warning_msg_request)
 
-    # def is_valid_user(self, username: str) -> bool:
-    #     user = self.user_service.find_by_username(username)
-    #     return user and not user.is_deleted and user.status == ActivationStatus.ACTIVE.value
+    def is_valid_user(self, username: str) -> bool:
+        current_user = self.user_service.find_by_username(username)
+
+        return not current_user.deleted and (current_user.status == 0)
