@@ -9,7 +9,7 @@ def list_topics():
     try:
         # Tạo KafkaAdminClient để liệt kê các topic
         admin_client = KafkaAdminClient(bootstrap_servers=bootstrap_servers)
-        topics = admin_client.list_topics()
+        topics = admin_client.list_consumer_groups()
         print(f"Các topic có trong Kafka: {topics}")
     except Exception as e:
         print(f"Đã có lỗi khi kết nối với Kafka: {e}")

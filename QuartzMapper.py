@@ -3,6 +3,7 @@ from typing import List
 from PostMongo import PostMongo
 from warning_service import WarningMsgRequest
 from elasticsearch import Elasticsearch
+import json
 
 class CommentESService:
     def __init__(self, es_host: str):
@@ -51,10 +52,36 @@ class QuartzMapper:
             content_post=content_post,
             interactive_amount=post.interactive,
             discussion_amount=post.comment + post.share + 1,
-            author_discussion_amount=commentESService.count_author_discussion(post.id),  # Assuming you have a service for this
+            author_discussion_amount=commentESService.count_author_discussion(post.id),  
             like_amount=post.like + post.haha + post.sad + post.wow + post.angry + post.love,
             comment_amount=post.comment,
             share_amount=post.share,
             post_link=post.link,
             author_link=post.author_link
         )
+    @staticmethod
+    def decode_to_warning(messages: bytes) -> List[Warning]:
+        """
+        Giải mã dữ liệu từ bytes thành danh sách đối tượng Warning.
+        :param messages: Dữ liệu bytes từ Kafka.
+        :return: Danh sách các đối tượng Warning.
+        """
+        try:
+            data = json.loads(messages.decode("utf-8")) 
+            return [Warning(**warning) for warning in data]  
+        except json.JSONDecodeError as e:
+            print(f"Lỗi khi giải mã JSON: {e}")
+            return []
+    @staticmethod
+    def json_to_warning(json_warning: str) -> Warning:
+        """
+        Chuyển đổi chuỗi JSON thành đối tượng Warning.
+        :param json_warning: Chuỗi JSON cần chuyển đổi.
+        :return: Đối tượng Warning hoặc None nếu có lỗi.
+        """
+        try:
+            warning_data = json.loads(json_warning)  # Giải mã JSON
+            return Warning(**warning_data)  # Chuyển dict thành object Warning
+        except json.JSONDecodeError as e:
+            print(f"Lỗi khi giải mã JSON thành Warning: {e}")
+            return None

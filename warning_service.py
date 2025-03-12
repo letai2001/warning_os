@@ -784,6 +784,19 @@ class WarningConditionService:
             warning_id_to_condition_map[warning_condition.warning_id].append(warning_condition)
         
         return warning_id_to_condition_map
+@dataclass
+class WarningSensitiveAccountResponse:
+    """
+    Class biểu diễn thông tin tài khoản nhạy cảm trong cảnh báo.
+    """
+    author: Optional[str] = None
+    author_link: Optional[str] = None
+    chanel: Optional[str] = None
+    post_amount: Optional[int] = None
+    interaction_amount: Optional[int] = None
+    discussion_amount: Optional[int] = None
+    negative_amount: Optional[int] = None
+    avatar_key: Optional[str] = None
 
 # Ví dụ về sử dụng
 if __name__ == "__main__":

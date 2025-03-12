@@ -1,5 +1,5 @@
 from pymongo import MongoClient
-from typing import List
+from typing import List, Optional
 import datetime
 from mail_service import Article
 from PostMongo import PostMongo
@@ -150,6 +150,27 @@ class PostTypeService:
         # Lọc dữ liệu từ MongoDB
         result = self.collection.find(criteria, {"_id": 1, "name": 1, "key": 1, "is_comment": 1})
         return [PostTypeResponse(doc["_id"], doc["name"], doc["key"], doc["is_comment"]) for doc in result]
+    def get_post_types(self, keys: Optional[List[str]] = None, is_comment: Optional[bool] = None) -> List[str]:
+        """
+        Lấy danh sách tên post type dựa trên key và trạng thái is_comment.
+        :param keys: Danh sách các key cần tìm.
+        :param is_comment: Giá trị is_comment cần lọc.
+        :return: Danh sách tên post type.
+        """
+        query = {}
+
+        if keys:
+            query["key"] = {"$in": keys}
+
+        if is_comment is not None:
+            query["is_comment"] = is_comment
+
+        # Truy vấn MongoDB
+        results = self.collection.find(query, {"_id": 0, "name": 1})
+
+        # Trả về danh sách tên post type
+        return [result["name"] for result in results]
+
 def main():
     # Tạo đối tượng PostTypeService và kiểm tra filter
     post_type_service = PostTypeService(db_url='10.11.32.22:30000', db_name='osint')

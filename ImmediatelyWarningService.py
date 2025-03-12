@@ -26,9 +26,9 @@ class ImmediatelyWarningFacadeService:
 # Khởi tạo NotificationService
         self.notification_service = NotificationService(notification_client_service=self.notification_client)
 
-        self.topic_v2_service = TopicV2Service(db_url=DB_URL, db_name='osint')  # Giả sử bạn có service này để lấy topic
+        self.topic_v2_service = TopicV2Service(db_url=DB_URL, db_name='osint') 
         self.warning_history_service = WarningHistoryService(db_url=DB_URL, db_name='osint')
-        self.warning_msg_service = WarningMsgService(db_url=DB_URL, db_name='osint')  # Giả sử có service gửi cảnh báo
+        self.warning_msg_service = WarningMsgService(db_url=DB_URL, db_name='osint')  
         self.quartz_mapper = QuartzMapper()
         self.user_service = UserService()
         self.mail_service = MailService(
@@ -123,21 +123,19 @@ class ImmediatelyWarningFacadeService:
             created_at=created_at,
             updated_by=updated_by,
             updated_at=updated_at,
-            is_notification= 0  in warning_method  # Check if Notification is in methods
+            is_notification= 0  in warning_method  
         )
 
         # Build warning history request
 
         return self.warning_history_service.create(warning_history_request)
     def save_warning_message(self, warning_id: str, warning_history_id: str, post_mongo: PostMongo) -> WarningMsgResponse:
-        # Xây dựng WarningMsgRequest từ quartzMapper (cần định nghĩa build_warning_msg_request trong quartzMapper)
         warning_msg_request = self.quartz_mapper.build_warning_msg_request(
             warning_id,
             warning_history_id,
             post_mongo
         )
         
-        # Gọi phương thức create của WarningMsgService để tạo WarningMsgResponse
         return self.warning_msg_service.create(warning_msg_request)
     def send_warning_to_email(self, 
         warning_history_id: str,
@@ -153,18 +151,15 @@ class ImmediatelyWarningFacadeService:
         TITLE_TABLE_TOPIC = "Bài viết"
         logging.info(f"(send_warning_to_email) warningId: {warning.id}, postId: {post_mongo.id}")
 
-        # 🔹 Tìm user theo created_by
         user = None
         try:
             user = self.user_service.find_by_username(warning.created_by)
         except Exception as e:
             logging.error(e)
 
-        # 🔹 Lấy email của user
         warning_creation_user_email = user.email if user and user.email else None
         content_post = post_mongo.title if post_mongo.title else post_mongo.content
 
-        # 🔹 Xây dựng tiêu đề email
         if warning_condition.criteria == 0:  # WarningCriteria.TOPIC
             subject = WarningUtils.build_subject_for_email_by_topic(topic_names, warning_condition.code)
             primary_content = WarningUtils.build_warning_content_by_topic_immediately(topic_names, content_post)
@@ -172,11 +167,9 @@ class ImmediatelyWarningFacadeService:
             subject = WarningUtils.build_subject_for_email_by_keyword(keywords, warning_condition.code)
             primary_content = WarningUtils.build_warning_content_by_keyword_immediately(keywords, content_post)
 
-        # 🔹 Xây dựng link cảnh báo
         link_warning = list_warning_frontend_url + WarningUtils.build_link_for_email(warning_history_id)
 
         try:
-            # 🔹 Gửi email nếu người tạo warning khác với người nhận
             if warning_creation_user_email and warning.email != warning_creation_user_email:
                 self.mail_service.send_email(
                     warning_creation_user_email,
@@ -190,7 +183,6 @@ class ImmediatelyWarningFacadeService:
                     1
                 )
 
-            # 🔹 Gửi email cho người nhận chính của warning
             self.mail_service.send_email(
                 warning.email,
                 subject,
